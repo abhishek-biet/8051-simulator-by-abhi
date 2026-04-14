@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { createCPU, resetCPU, executeInstruction, syncSFRsToRAM, syncRAMToSFRs, getRn, type CPUState } from '@/lib/cpu8051';
 import { assemble, type AssemblerResult, type AssemblerError } from '@/lib/assembler8051';
 import { savedPrograms, NEW_PROGRAM_TEMPLATE } from '@/lib/programs8051';
-import { Play, RotateCcw, StepForward, Bug, Square, Download, FilePlus, ChevronDown, Search, Cpu, Terminal, Lightbulb, MemoryStick, Sun, Moon } from 'lucide-react';
+import { Play, RotateCcw, StepForward, Bug, Square, Download, FilePlus, ChevronDown, Search, Cpu, Terminal, Lightbulb, MemoryStick, Sun, Moon, Github, X as XIcon } from 'lucide-react';
 
 const hex = (v: number, digits = 2) => v.toString(16).toUpperCase().padStart(digits, '0');
 
@@ -95,7 +95,67 @@ function highlightLine(line: string): JSX.Element {
   return <>{parts}</>;
 }
 
+// Landing Page component
+function LandingPage({ onStart, lightMode, setLightMode }: { onStart: () => void; lightMode: boolean; setLightMode: (v: boolean) => void }) {
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen px-4"
+      style={{ backgroundColor: 'hsl(var(--background))' }}>
+      <div className="text-center max-w-lg space-y-6">
+        <div className="flex justify-center mb-4">
+          <div className="w-20 h-20 rounded-2xl flex items-center justify-center"
+            style={{ backgroundColor: 'hsl(var(--primary) / 0.15)' }}>
+            <Cpu className="w-10 h-10" style={{ color: 'hsl(var(--primary))' }} />
+          </div>
+        </div>
+        <h1 className="text-3xl sm:text-4xl font-bold" style={{ color: 'hsl(var(--foreground))' }}>
+          8051 <span style={{ color: 'hsl(var(--primary))' }}>Simulator</span>
+        </h1>
+        <p className="text-sm sm:text-base" style={{ color: 'hsl(var(--muted-foreground))' }}>
+          A professional-grade 8051 Microcontroller IDE & Simulator with cycle-accurate emulation, syntax-highlighted editor, live memory view, and port monitoring.
+        </p>
+        <button
+          onClick={onStart}
+          className="px-8 py-3 rounded-lg text-sm font-bold transition-all hover:scale-105"
+          style={{ backgroundColor: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}>
+          🚀 Start Debugging
+        </button>
+        <p className="text-[11px]" style={{ color: 'hsl(var(--muted-foreground))' }}>
+          💡 Tip: You can toggle between Light and Dark mode using the <Sun className="w-3 h-3 inline" /> / <Moon className="w-3 h-3 inline" /> button in the toolbar.
+        </p>
+      </div>
+
+      <footer className="absolute bottom-4 flex flex-col items-center gap-2">
+        <a href="https://github.com/abhishek132006" target="_blank" rel="noopener noreferrer"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors hover:opacity-80"
+          style={{ backgroundColor: 'hsl(var(--surface-2))', color: 'hsl(var(--foreground))' }}>
+          <Github className="w-4 h-4" /> GitHub
+        </a>
+        <span className="text-[10px]" style={{ color: 'hsl(var(--muted-foreground))' }}>
+          Built by <span style={{ color: 'hsl(var(--primary))', fontWeight: 600 }}>Abhishek K B</span>
+        </span>
+      </footer>
+    </div>
+  );
+}
+
+// Install banner component
+function InstallBanner({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="flex items-center justify-between px-3 py-2 text-xs"
+      style={{ backgroundColor: 'hsl(var(--primary) / 0.15)', color: 'hsl(var(--foreground))' }}>
+      <span>
+        📱 <strong>Tip:</strong> Add this page to your home screen for an app-like experience! Use your browser's "Add to Home Screen" or "Install" option.
+      </span>
+      <button onClick={onClose} className="ml-2 p-0.5 rounded hover:opacity-70 shrink-0">
+        <XIcon className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  );
+}
+
 export default function IDE8051() {
+  const [showLanding, setShowLanding] = useState(true);
+  const [showInstallBanner, setShowInstallBanner] = useState(true);
   const [cpu, setCpu] = useState<CPUState>(() => createCPU());
   const [source, setSource] = useState(savedPrograms[0].code);
   const [assembled, setAssembled] = useState(false);
@@ -109,10 +169,20 @@ export default function IDE8051() {
   const [editValue, setEditValue] = useState('');
   const [showPrograms, setShowPrograms] = useState(false);
   const [statusMsg, setStatusMsg] = useState('Ready');
-  const [lightMode, setLightMode] = useState(false);
+  const [lightMode, setLightMode] = useState(true); // Default light mode
   const runRef = useRef(false);
+  const editorContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const highlightRef = useRef<HTMLDivElement>(null);
   const [mobileTab, setMobileTab] = useState<'editor' | 'registers' | 'memory' | 'ports'>('editor');
+
+  // Sync scroll between textarea and highlight overlay
+  const handleEditorScroll = useCallback(() => {
+    if (textareaRef.current && highlightRef.current) {
+      highlightRef.current.scrollTop = textareaRef.current.scrollTop;
+      highlightRef.current.scrollLeft = textareaRef.current.scrollLeft;
+    }
+  }, []);
 
   const updateCPU = useCallback(() => {
     setCpu(prev => ({ ...prev }));
@@ -298,56 +368,65 @@ export default function IDE8051() {
     return isNaN(v) ? null : v;
   }, [memSearch]);
 
-  const getPortBits = (portVal: number): boolean[] => {
-    return Array.from({ length: 8 }, (_, i) => !!(portVal & (1 << (7 - i))));
-  };
-
   const sourceLines = source.split('\n');
   const categories = [...new Set(savedPrograms.map(p => p.category))];
 
+  const themeVars = lightMode ? {
+    '--background': '30 100% 97%',
+    '--foreground': '20 14% 15%',
+    '--card': '30 60% 95%',
+    '--card-foreground': '20 14% 15%',
+    '--popover': '30 60% 95%',
+    '--popover-foreground': '20 14% 15%',
+    '--primary': '24 80% 50%',
+    '--primary-foreground': '0 0% 100%',
+    '--secondary': '30 30% 90%',
+    '--secondary-foreground': '20 14% 15%',
+    '--muted': '30 30% 90%',
+    '--muted-foreground': '20 10% 45%',
+    '--accent': '142 60% 40%',
+    '--accent-foreground': '0 0% 100%',
+    '--destructive': '0 84% 50%',
+    '--destructive-foreground': '0 0% 100%',
+    '--border': '30 20% 82%',
+    '--input': '30 20% 82%',
+    '--ring': '24 80% 50%',
+    '--surface-0': '30 100% 97%',
+    '--surface-1': '30 50% 94%',
+    '--surface-2': '30 40% 91%',
+    '--surface-3': '30 30% 86%',
+    '--led-on': '142 60% 40%',
+    '--led-off': '30 20% 85%',
+    '--editor-bg': '0 0% 100%',
+    '--editor-line': '30 30% 96%',
+    '--editor-highlight': '24 80% 50% / 0.12',
+    '--editor-cursor': '24 80% 50%',
+    '--syntax-keyword': '220 80% 45%',
+    '--syntax-register': '142 60% 35%',
+    '--syntax-number': '24 90% 45%',
+    '--syntax-comment': '20 10% 55%',
+    '--syntax-label': '340 70% 45%',
+    '--syntax-directive': '280 55% 50%',
+    '--syntax-string': '24 90% 45%',
+    '--success': '142 60% 40%',
+    '--warning': '38 92% 50%',
+  } as React.CSSProperties : undefined;
+
+  if (showLanding) {
+    return (
+      <div style={themeVars}>
+        <LandingPage onStart={() => setShowLanding(false)} lightMode={lightMode} setLightMode={setLightMode} />
+      </div>
+    );
+  }
+
   return (
     <div className={`flex flex-col h-screen overflow-hidden ${lightMode ? 'light-theme' : ''}`}
-      style={lightMode ? {
-        '--background': '30 100% 97%',
-        '--foreground': '20 14% 15%',
-        '--card': '30 60% 95%',
-        '--card-foreground': '20 14% 15%',
-        '--popover': '30 60% 95%',
-        '--popover-foreground': '20 14% 15%',
-        '--primary': '24 80% 50%',
-        '--primary-foreground': '0 0% 100%',
-        '--secondary': '30 30% 90%',
-        '--secondary-foreground': '20 14% 15%',
-        '--muted': '30 30% 90%',
-        '--muted-foreground': '20 10% 45%',
-        '--accent': '142 60% 40%',
-        '--accent-foreground': '0 0% 100%',
-        '--destructive': '0 84% 50%',
-        '--destructive-foreground': '0 0% 100%',
-        '--border': '30 20% 82%',
-        '--input': '30 20% 82%',
-        '--ring': '24 80% 50%',
-        '--surface-0': '30 100% 97%',
-        '--surface-1': '30 50% 94%',
-        '--surface-2': '30 40% 91%',
-        '--surface-3': '30 30% 86%',
-        '--led-on': '142 60% 40%',
-        '--led-off': '30 20% 85%',
-        '--editor-bg': '0 0% 100%',
-        '--editor-line': '30 30% 96%',
-        '--editor-highlight': '24 80% 50% / 0.12',
-        '--editor-cursor': '24 80% 50%',
-        '--syntax-keyword': '220 80% 45%',
-        '--syntax-register': '142 60% 35%',
-        '--syntax-number': '24 90% 45%',
-        '--syntax-comment': '20 10% 55%',
-        '--syntax-label': '340 70% 45%',
-        '--syntax-directive': '280 55% 50%',
-        '--syntax-string': '24 90% 45%',
-        '--success': '142 60% 40%',
-        '--warning': '38 92% 50%',
-      } as React.CSSProperties : undefined}
+      style={themeVars}
     >
+      {/* Install Banner */}
+      {showInstallBanner && <InstallBanner onClose={() => setShowInstallBanner(false)} />}
+
       {/* Header */}
       <header className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0"
         style={{ backgroundColor: 'hsl(var(--surface-1))' }}>
@@ -359,7 +438,7 @@ export default function IDE8051() {
         </div>
 
         {/* Toolbar */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 flex-wrap">
           <button onClick={handleNew} className="flex items-center gap-1 px-2 py-1.5 text-xs rounded transition-colors"
             style={{ backgroundColor: 'hsl(var(--surface-2))', color: 'hsl(var(--foreground))' }}
             title="New Program">
@@ -462,18 +541,34 @@ export default function IDE8051() {
 
         {/* Center: Editor */}
         <main className={`${mobileTab === 'editor' ? 'flex' : 'hidden'} lg:flex flex-col flex-1 min-w-0 overflow-hidden`}>
-          <div className="flex-1 overflow-auto scrollbar-thin" style={{ backgroundColor: 'hsl(var(--editor-bg))' }}>
-            <div className="flex min-h-full">
-              <div className="select-none text-right pr-2 pl-2 pt-2 text-[11px] leading-5 font-mono shrink-0"
-                style={{ minWidth: '2.5rem', color: 'hsl(var(--muted-foreground))' }}>
+          <div className="flex-1 overflow-hidden relative" ref={editorContainerRef} style={{ backgroundColor: 'hsl(var(--editor-bg))' }}>
+            <div className="flex h-full">
+              {/* Line numbers */}
+              <div className="select-none text-right pr-2 pl-2 pt-2 text-[11px] leading-[20px] font-mono shrink-0 overflow-hidden"
+                style={{ minWidth: '2.5rem', color: 'hsl(var(--muted-foreground))' }}
+                ref={(el) => {
+                  // Sync line numbers scroll with textarea
+                  if (el && textareaRef.current) {
+                    const ta = textareaRef.current;
+                    const syncLineNumbers = () => { el.scrollTop = ta.scrollTop; };
+                    ta.addEventListener('scroll', syncLineNumbers);
+                  }
+                }}>
                 {sourceLines.map((_, i) => (
                   <div key={i} style={currentLine === i + 1 ? { color: 'hsl(var(--primary))', fontWeight: 'bold' } : undefined}>
                     {i + 1}
                   </div>
                 ))}
               </div>
+
+              {/* Editor area with overlay approach fixed */}
               <div className="relative flex-1 min-w-0">
-                <div className="absolute inset-0 pt-2 pr-4 pointer-events-none font-mono text-[11px] leading-5 whitespace-pre overflow-hidden">
+                {/* Syntax highlight layer - behind textarea */}
+                <div
+                  ref={highlightRef}
+                  className="absolute inset-0 pt-2 pr-4 font-mono text-[11px] leading-[20px] whitespace-pre overflow-hidden pointer-events-none"
+                  aria-hidden="true"
+                >
                   {sourceLines.map((line, i) => (
                     <div key={i}
                       className="px-1"
@@ -482,6 +577,8 @@ export default function IDE8051() {
                     </div>
                   ))}
                 </div>
+
+                {/* Actual editable textarea on top */}
                 <textarea
                   ref={textareaRef}
                   value={source}
@@ -489,11 +586,13 @@ export default function IDE8051() {
                     setSource(e.target.value);
                     setAssembled(false);
                   }}
-                  className="absolute inset-0 w-full h-full pt-2 px-1 pr-4 font-mono text-[11px] leading-5 bg-transparent resize-none outline-none"
-                  style={{ color: 'transparent', caretColor: 'hsl(var(--editor-cursor))' }}
+                  onScroll={handleEditorScroll}
+                  className="absolute inset-0 w-full h-full pt-2 px-1 pr-4 font-mono text-[11px] leading-[20px] bg-transparent resize-none outline-none z-10"
+                  style={{ color: 'transparent', caretColor: 'hsl(var(--editor-cursor))', WebkitTextFillColor: 'transparent' }}
                   spellCheck={false}
                   autoCapitalize="off"
                   autoCorrect="off"
+                  autoComplete="off"
                 />
               </div>
             </div>
@@ -553,11 +652,19 @@ export default function IDE8051() {
         </aside>
       </div>
 
-      {/* Status bar */}
+      {/* Status bar / Footer */}
       <footer className="flex items-center justify-between px-3 py-1 border-t text-[10px] shrink-0"
         style={{ backgroundColor: 'hsl(var(--surface-2))', borderColor: 'hsl(var(--border))', color: 'hsl(var(--muted-foreground))' }}>
         <span>PC: {hex(cpu.PC, 4)}h | Cycles: {cpu.cycles}</span>
-        <span>{assembled ? (cpu.halted ? '● Halted' : running ? '● Running' : '● Ready') : '○ Not built'}</span>
+        <span className="flex items-center gap-2">
+          {assembled ? (cpu.halted ? '● Halted' : running ? '● Running' : '● Ready') : '○ Not built'}
+          <span className="hidden sm:inline">|</span>
+          <span className="hidden sm:inline">Built by <span style={{ color: 'hsl(var(--primary))', fontWeight: 600 }}>Abhishek K B</span></span>
+          <a href="https://github.com/abhishek132006" target="_blank" rel="noopener noreferrer"
+            className="hover:opacity-70 transition-opacity">
+            <Github className="w-3 h-3" />
+          </a>
+        </span>
       </footer>
 
       {showPrograms && <div className="fixed inset-0 z-40" onClick={() => setShowPrograms(false)} />}
