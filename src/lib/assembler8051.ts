@@ -45,6 +45,9 @@ const BIT_ADDRESSES: Record<string, number> = {
 
 function parseNumber(s: string, symbols: Map<string, number>): number | null {
   s = s.trim();
+  // Handle __CURR_PC_N__ placeholders for $
+  const currPcMatch = s.match(/^__CURR_PC_(\d+)__$/);
+  if (currPcMatch) return parseInt(currPcMatch[1], 10);
   // Check symbol table
   if (symbols.has(s.toUpperCase())) return symbols.get(s.toUpperCase())!;
   // Check SFR names
@@ -110,6 +113,9 @@ export function assemble(source: string): AssemblerResult {
     const commentIdx = line.indexOf(';');
     if (commentIdx >= 0) line = line.substring(0, commentIdx).trim();
     if (!line) continue;
+
+    // Handle $ as current PC address
+    line = line.replace(/\$(?![a-zA-Z0-9_])/g, `__CURR_PC_${pc}__`);
 
     let label: string | undefined;
     let mnemonic: string | undefined;
@@ -631,7 +637,7 @@ function encodeInstruction(
           const imm = isImmediate(op[1]);
           if (imm) {
             const v = resolveVal(imm);
-            if (v !== null) return [0xB8 + rn, v & 0xFF, calcRel(target, 2)];
+            if (v !== null) return [0xB8 + rn, v & 0xFF, calcRel(target, 3)];
           }
         }
       }
