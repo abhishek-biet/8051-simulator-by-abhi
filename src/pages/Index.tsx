@@ -2,100 +2,11 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { createCPU, resetCPU, executeInstruction, syncSFRsToRAM, syncRAMToSFRs, getRn, type CPUState } from '@/lib/cpu8051';
 import { assemble, type AssemblerResult, type AssemblerError } from '@/lib/assembler8051';
 import { savedPrograms, NEW_PROGRAM_TEMPLATE } from '@/lib/programs8051';
-import { Play, RotateCcw, StepForward, Bug, Square, Download, FilePlus, ChevronDown, Search, Cpu, Terminal, Lightbulb, MemoryStick, Sun, Moon, Github, X as XIcon } from 'lucide-react';
+import { Play, RotateCcw, StepForward, Bug, Square, Download, FilePlus, ChevronDown, Search, Cpu, Terminal, Lightbulb, MemoryStick, Sun, Moon, Github, X as XIcon, Smartphone } from 'lucide-react';
 
 const hex = (v: number, digits = 2) => v.toString(16).toUpperCase().padStart(digits, '0');
 
-// Syntax highlighting for 8051 assembly
-function highlightLine(line: string): JSX.Element {
-  const parts: JSX.Element[] = [];
-  let remaining = line;
-  let key = 0;
-
-  const commentIdx = remaining.indexOf(';');
-  let comment = '';
-  if (commentIdx >= 0) {
-    comment = remaining.substring(commentIdx);
-    remaining = remaining.substring(0, commentIdx);
-  }
-
-  const tokens = remaining.split(/(\s+|,)/);
-  let isFirstToken = true;
-
-  for (const token of tokens) {
-    if (!token) continue;
-    const tu = token.toUpperCase().trim();
-
-    if (/^\s+$/.test(token) || token === ',') {
-      parts.push(<span key={key++}>{token}</span>);
-      continue;
-    }
-
-    if (tu.endsWith(':')) {
-      parts.push(<span key={key++} className="text-syntax-label font-bold">{token}</span>);
-      isFirstToken = false;
-      continue;
-    }
-
-    if (['ORG', 'EQU', 'DB', 'DW', 'END'].includes(tu)) {
-      parts.push(<span key={key++} className="text-syntax-directive">{token}</span>);
-      isFirstToken = false;
-      continue;
-    }
-
-    const instructions = ['MOV', 'MOVX', 'MOVC', 'ADD', 'ADDC', 'SUBB', 'MUL', 'DIV',
-      'ANL', 'ORL', 'XRL', 'CLR', 'SETB', 'CPL', 'INC', 'DEC', 'DA', 'SWAP',
-      'RL', 'RLC', 'RR', 'RRC', 'PUSH', 'POP', 'XCH', 'XCHD',
-      'LJMP', 'SJMP', 'AJMP', 'JMP', 'LCALL', 'ACALL', 'RET', 'RETI',
-      'JZ', 'JNZ', 'JC', 'JNC', 'JB', 'JNB', 'JBC', 'DJNZ', 'CJNE',
-      'NOP'];
-    if (instructions.includes(tu)) {
-      parts.push(<span key={key++} className="text-syntax-keyword font-semibold">{token}</span>);
-      isFirstToken = false;
-      continue;
-    }
-
-    const registers = ['A', 'B', 'ACC', 'SP', 'DPTR', 'DPL', 'DPH', 'PSW',
-      'P0', 'P1', 'P2', 'P3', 'TMOD', 'TCON', 'TH0', 'TL0', 'TH1', 'TL1',
-      'SCON', 'SBUF', 'IE', 'IP', 'PCON',
-      'R0', 'R1', 'R2', 'R3', 'R4', 'R5', 'R6', 'R7',
-      '@R0', '@R1', '@A+DPTR', '@A+PC', '@DPTR', 'C',
-      'CY', 'AC', 'F0', 'RS1', 'RS0', 'OV', 'P'];
-    if (registers.includes(tu)) {
-      parts.push(<span key={key++} className="text-syntax-register">{token}</span>);
-      isFirstToken = false;
-      continue;
-    }
-
-    if (/^#/.test(token) || /^[0-9]/.test(tu) || /^0[xX]/.test(token) || /H$/i.test(token)) {
-      parts.push(<span key={key++} className="text-syntax-number">{token}</span>);
-      isFirstToken = false;
-      continue;
-    }
-
-    if (/^'.'$/.test(token)) {
-      parts.push(<span key={key++} className="text-syntax-string">{token}</span>);
-      isFirstToken = false;
-      continue;
-    }
-
-    if (!isFirstToken && /^\w+$/.test(token)) {
-      parts.push(<span key={key++} className="text-syntax-label">{token}</span>);
-      continue;
-    }
-
-    parts.push(<span key={key++} className="text-foreground">{token}</span>);
-    isFirstToken = false;
-  }
-
-  if (comment) {
-    parts.push(<span key={key++} className="text-syntax-comment italic">{comment}</span>);
-  }
-
-  return <>{parts}</>;
-}
-
-// Landing Page component
+// Landing Page
 function LandingPage({ onStart, lightMode, setLightMode }: { onStart: () => void; lightMode: boolean; setLightMode: (v: boolean) => void }) {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen px-4"
@@ -110,8 +21,8 @@ function LandingPage({ onStart, lightMode, setLightMode }: { onStart: () => void
         <h1 className="text-3xl sm:text-4xl font-bold" style={{ color: 'hsl(var(--foreground))' }}>
           8051 <span style={{ color: 'hsl(var(--primary))' }}>Simulator</span>
         </h1>
-        <p className="text-sm sm:text-base" style={{ color: 'hsl(var(--muted-foreground))' }}>
-          A professional-grade 8051 Microcontroller IDE & Simulator with cycle-accurate emulation, syntax-highlighted editor, live memory view, and port monitoring.
+        <p className="text-sm sm:text-base leading-relaxed" style={{ color: 'hsl(var(--muted-foreground))', fontFamily: "'Inter', sans-serif" }}>
+          A professional-grade 8051 Microcontroller IDE & Simulator with cycle-accurate emulation, live memory view, and port monitoring.
         </p>
         <button
           onClick={onStart}
@@ -119,9 +30,6 @@ function LandingPage({ onStart, lightMode, setLightMode }: { onStart: () => void
           style={{ backgroundColor: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}>
           🚀 Start Debugging
         </button>
-        <p className="text-[11px]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-          💡 Tip: You can toggle between Light and Dark mode using the <Sun className="w-3 h-3 inline" /> / <Moon className="w-3 h-3 inline" /> button in the toolbar.
-        </p>
       </div>
 
       <footer className="absolute bottom-4 flex flex-col items-center gap-2">
@@ -138,17 +46,48 @@ function LandingPage({ onStart, lightMode, setLightMode }: { onStart: () => void
   );
 }
 
-// Install banner component
+// Install banner with install button
 function InstallBanner({ onClose }: { onClose: () => void }) {
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handler as any);
+    return () => window.removeEventListener('beforeinstallprompt', handler as any);
+  }, []);
+
+  const handleInstall = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const result = await deferredPrompt.userChoice;
+      if (result.outcome === 'accepted') onClose();
+      setDeferredPrompt(null);
+    } else {
+      // Fallback: guide user
+      alert('To install: Open browser menu → "Add to Home Screen" or "Install App"');
+    }
+  };
+
   return (
-    <div className="flex items-center justify-between px-3 py-2 text-xs"
+    <div className="flex items-center justify-between px-3 py-2 text-xs gap-2"
       style={{ backgroundColor: 'hsl(var(--primary) / 0.15)', color: 'hsl(var(--foreground))' }}>
-      <span>
-        📱 <strong>Tip:</strong> Add this page to your home screen for an app-like experience! Use your browser's "Add to Home Screen" or "Install" option.
+      <span className="flex items-center gap-1.5">
+        <Smartphone className="w-3.5 h-3.5 shrink-0" style={{ color: 'hsl(var(--primary))' }} />
+        <span>Install this app on your device for the best experience!</span>
       </span>
-      <button onClick={onClose} className="ml-2 p-0.5 rounded hover:opacity-70 shrink-0">
-        <XIcon className="w-3.5 h-3.5" />
-      </button>
+      <div className="flex items-center gap-1.5 shrink-0">
+        <button onClick={handleInstall}
+          className="px-3 py-1 rounded text-[11px] font-bold transition-colors"
+          style={{ backgroundColor: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}>
+          Install
+        </button>
+        <button onClick={onClose} className="p-0.5 rounded hover:opacity-70">
+          <XIcon className="w-3.5 h-3.5" />
+        </button>
+      </div>
     </div>
   );
 }
@@ -169,20 +108,9 @@ export default function IDE8051() {
   const [editValue, setEditValue] = useState('');
   const [showPrograms, setShowPrograms] = useState(false);
   const [statusMsg, setStatusMsg] = useState('Ready');
-  const [lightMode, setLightMode] = useState(true); // Default light mode
+  const [lightMode, setLightMode] = useState(true);
   const runRef = useRef(false);
-  const editorContainerRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const highlightRef = useRef<HTMLDivElement>(null);
   const [mobileTab, setMobileTab] = useState<'editor' | 'registers' | 'memory' | 'ports'>('editor');
-
-  // Sync scroll between textarea and highlight overlay
-  const handleEditorScroll = useCallback(() => {
-    if (textareaRef.current && highlightRef.current) {
-      highlightRef.current.scrollTop = textareaRef.current.scrollTop;
-      highlightRef.current.scrollLeft = textareaRef.current.scrollLeft;
-    }
-  }, []);
 
   const updateCPU = useCallback(() => {
     setCpu(prev => ({ ...prev }));
@@ -424,62 +352,60 @@ export default function IDE8051() {
     <div className={`flex flex-col h-screen overflow-hidden ${lightMode ? 'light-theme' : ''}`}
       style={themeVars}
     >
-      {/* Install Banner */}
       {showInstallBanner && <InstallBanner onClose={() => setShowInstallBanner(false)} />}
 
       {/* Header */}
-      <header className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0"
+      <header className="flex items-center justify-between px-2 sm:px-3 py-2 border-b border-border shrink-0"
         style={{ backgroundColor: 'hsl(var(--surface-1))' }}>
         <div className="flex items-center gap-2">
           <Cpu className="w-5 h-5" style={{ color: 'hsl(var(--primary))' }} />
-          <h1 className="text-sm font-bold tracking-wide" style={{ color: 'hsl(var(--foreground))' }}>
+          <h1 className="text-sm font-bold tracking-wide hidden sm:block" style={{ color: 'hsl(var(--foreground))' }}>
             8051 <span style={{ color: 'hsl(var(--primary))' }}>Simulator</span>
           </h1>
         </div>
 
         {/* Toolbar */}
         <div className="flex items-center gap-1 flex-wrap">
-          <button onClick={handleNew} className="flex items-center gap-1 px-2 py-1.5 text-xs rounded transition-colors"
+          <button onClick={handleNew} className="flex items-center gap-1 px-2 py-1.5 text-[11px] rounded transition-colors"
             style={{ backgroundColor: 'hsl(var(--surface-2))', color: 'hsl(var(--foreground))' }}
             title="New Program">
-            <FilePlus className="w-3.5 h-3.5" /> <span className="hidden sm:inline">New</span>
+            <FilePlus className="w-3.5 h-3.5" /> New
           </button>
-          <button onClick={handleSave} className="flex items-center gap-1 px-2 py-1.5 text-xs rounded transition-colors"
+          <button onClick={handleSave} className="flex items-center gap-1 px-2 py-1.5 text-[11px] rounded transition-colors"
             style={{ backgroundColor: 'hsl(var(--surface-2))', color: 'hsl(var(--foreground))' }}
             title="Save as .txt">
-            <Download className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Save</span>
+            <Download className="w-3.5 h-3.5" /> Save
           </button>
           <div className="w-px h-5" style={{ backgroundColor: 'hsl(var(--border))' }} />
-          <button onClick={handleDebug} className="flex items-center gap-1 px-2 py-1.5 text-xs rounded font-semibold transition-colors"
+          <button onClick={handleDebug} className="flex items-center gap-1 px-2 py-1.5 text-[11px] rounded font-semibold transition-colors"
             style={{ backgroundColor: 'hsl(var(--primary) / 0.2)', color: 'hsl(var(--primary))' }}
             title="Build & Debug">
-            <Bug className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Debug</span>
+            <Bug className="w-3.5 h-3.5" /> Debug
           </button>
           <button onClick={handleStep} disabled={!assembled || running || cpu.halted}
-            className="flex items-center gap-1 px-2 py-1.5 text-xs rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex items-center gap-1 px-2 py-1.5 text-[11px] rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             style={{ backgroundColor: 'hsl(var(--surface-2))', color: 'hsl(var(--foreground))' }}
             title="Step Into">
-            <StepForward className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Step</span>
+            <StepForward className="w-3.5 h-3.5" /> Step
           </button>
           <button onClick={handleRun} disabled={!assembled || cpu.halted}
-            className="flex items-center gap-1 px-2 py-1.5 text-xs rounded font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex items-center gap-1 px-2 py-1.5 text-[11px] rounded font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             style={{
               backgroundColor: running ? 'hsl(var(--destructive) / 0.2)' : 'hsl(var(--success) / 0.2)',
               color: running ? 'hsl(var(--destructive))' : 'hsl(var(--success))'
             }}
             title={running ? "Stop" : "Run"}>
             {running ? <Square className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-            <span className="hidden sm:inline">{running ? 'Stop' : 'Run'}</span>
+            {running ? 'Stop' : 'Run'}
           </button>
-          <button onClick={handleReset} className="flex items-center gap-1 px-2 py-1.5 text-xs rounded transition-colors"
+          <button onClick={handleReset} className="flex items-center gap-1 px-2 py-1.5 text-[11px] rounded transition-colors"
             style={{ backgroundColor: 'hsl(var(--surface-2))', color: 'hsl(var(--foreground))' }}
             title="Reset">
-            <RotateCcw className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Reset</span>
+            <RotateCcw className="w-3.5 h-3.5" /> Reset
           </button>
 
-          {/* Light/Dark Toggle */}
           <button onClick={() => setLightMode(!lightMode)}
-            className="flex items-center gap-1 px-2 py-1.5 text-xs rounded transition-colors"
+            className="flex items-center gap-1 px-2 py-1.5 text-[11px] rounded transition-colors"
             style={{ backgroundColor: 'hsl(var(--surface-2))', color: 'hsl(var(--foreground))' }}
             title={lightMode ? 'Dark Mode' : 'Light Mode'}>
             {lightMode ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />}
@@ -488,10 +414,10 @@ export default function IDE8051() {
           {/* Saved Programs Dropdown */}
           <div className="relative ml-1">
             <button onClick={() => setShowPrograms(!showPrograms)}
-              className="flex items-center gap-1 px-2 py-1.5 text-xs rounded transition-colors"
+              className="flex items-center gap-1 px-2 py-1.5 text-[11px] rounded transition-colors"
               style={{ backgroundColor: 'hsl(var(--surface-2))', color: 'hsl(var(--foreground))' }}>
               <span className="hidden md:inline">Saved Programs</span>
-              <span className="md:hidden">Pgm</span>
+              <span className="md:hidden">Programs</span>
               <ChevronDown className="w-3 h-3" />
             </button>
             {showPrograms && (
@@ -533,69 +459,48 @@ export default function IDE8051() {
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden min-h-0">
-        {/* Left: Registers Panel */}
+        {/* Left: Registers */}
         <aside className={`${mobileTab === 'registers' ? 'flex' : 'hidden'} lg:flex flex-col w-full lg:w-56 xl:w-64 border-r overflow-auto scrollbar-thin shrink-0`}
           style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--surface-1))' }}>
           <RegistersPanel cpu={cpu} />
         </aside>
 
-        {/* Center: Editor */}
+        {/* Center: Editor - SINGLE TEXTAREA, no overlay */}
         <main className={`${mobileTab === 'editor' ? 'flex' : 'hidden'} lg:flex flex-col flex-1 min-w-0 overflow-hidden`}>
-          <div className="flex-1 overflow-hidden relative" ref={editorContainerRef} style={{ backgroundColor: 'hsl(var(--editor-bg))' }}>
-            <div className="flex h-full">
-              {/* Line numbers */}
-              <div className="select-none text-right pr-2 pl-2 pt-2 text-[11px] leading-[20px] font-mono shrink-0 overflow-hidden"
-                style={{ minWidth: '2.5rem', color: 'hsl(var(--muted-foreground))' }}
-                ref={(el) => {
-                  // Sync line numbers scroll with textarea
-                  if (el && textareaRef.current) {
-                    const ta = textareaRef.current;
-                    const syncLineNumbers = () => { el.scrollTop = ta.scrollTop; };
-                    ta.addEventListener('scroll', syncLineNumbers);
-                  }
-                }}>
-                {sourceLines.map((_, i) => (
-                  <div key={i} style={currentLine === i + 1 ? { color: 'hsl(var(--primary))', fontWeight: 'bold' } : undefined}>
-                    {i + 1}
-                  </div>
-                ))}
-              </div>
-
-              {/* Editor area with overlay approach fixed */}
-              <div className="relative flex-1 min-w-0">
-                {/* Syntax highlight layer - behind textarea */}
-                <div
-                  ref={highlightRef}
-                  className="absolute inset-0 pt-2 pr-4 font-mono text-[11px] leading-[20px] whitespace-pre overflow-hidden pointer-events-none"
-                  aria-hidden="true"
-                >
-                  {sourceLines.map((line, i) => (
-                    <div key={i}
-                      className="px-1"
-                      style={currentLine === i + 1 ? { backgroundColor: 'hsl(var(--editor-highlight))', borderRadius: '3px' } : undefined}>
-                      {highlightLine(line)}
-                    </div>
-                  ))}
+          <div className="flex-1 overflow-hidden flex" style={{ backgroundColor: 'hsl(var(--editor-bg))' }}>
+            {/* Line numbers */}
+            <div className="select-none text-right pr-2 pl-2 pt-2 text-[11px] leading-[20px] font-mono shrink-0 overflow-hidden"
+              style={{ minWidth: '2.5rem', color: 'hsl(var(--muted-foreground))' }}
+              id="line-numbers">
+              {sourceLines.map((_, i) => (
+                <div key={i} style={currentLine === i + 1 ? { color: 'hsl(var(--primary))', fontWeight: 'bold' } : undefined}>
+                  {i + 1}
                 </div>
-
-                {/* Actual editable textarea on top */}
-                <textarea
-                  ref={textareaRef}
-                  value={source}
-                  onChange={e => {
-                    setSource(e.target.value);
-                    setAssembled(false);
-                  }}
-                  onScroll={handleEditorScroll}
-                  className="absolute inset-0 w-full h-full pt-2 px-1 pr-4 font-mono text-[11px] leading-[20px] bg-transparent resize-none outline-none z-10"
-                  style={{ color: 'transparent', caretColor: 'hsl(var(--editor-cursor))', WebkitTextFillColor: 'transparent' }}
-                  spellCheck={false}
-                  autoCapitalize="off"
-                  autoCorrect="off"
-                  autoComplete="off"
-                />
-              </div>
+              ))}
             </div>
+
+            {/* Plain editable textarea */}
+            <textarea
+              value={source}
+              onChange={e => {
+                setSource(e.target.value);
+                setAssembled(false);
+              }}
+              onScroll={e => {
+                const lineNums = document.getElementById('line-numbers');
+                if (lineNums) lineNums.scrollTop = (e.target as HTMLTextAreaElement).scrollTop;
+              }}
+              className="flex-1 w-full h-full pt-2 px-1 pr-4 font-mono text-[11px] leading-[20px] resize-none outline-none"
+              style={{
+                backgroundColor: 'transparent',
+                color: 'hsl(var(--foreground))',
+                caretColor: 'hsl(var(--editor-cursor))',
+              }}
+              spellCheck={false}
+              autoCapitalize="off"
+              autoCorrect="off"
+              autoComplete="off"
+            />
           </div>
 
           {/* Error/Output Panel */}
@@ -652,7 +557,7 @@ export default function IDE8051() {
         </aside>
       </div>
 
-      {/* Status bar / Footer */}
+      {/* Status bar */}
       <footer className="flex items-center justify-between px-3 py-1 border-t text-[10px] shrink-0"
         style={{ backgroundColor: 'hsl(var(--surface-2))', borderColor: 'hsl(var(--border))', color: 'hsl(var(--muted-foreground))' }}>
         <span>PC: {hex(cpu.PC, 4)}h | Cycles: {cpu.cycles}</span>
@@ -807,7 +712,7 @@ function MemoryPanel({
             backgroundColor: memType === 'internal' ? 'hsl(var(--primary))' : 'hsl(var(--surface-3))',
             color: memType === 'internal' ? 'hsl(var(--primary-foreground))' : 'hsl(var(--muted-foreground))'
           }}>
-          INT
+          Internal
         </button>
         <button onClick={() => setMemType('external')}
           className="px-2 py-0.5 text-[10px] rounded"
@@ -815,7 +720,7 @@ function MemoryPanel({
             backgroundColor: memType === 'external' ? 'hsl(var(--primary))' : 'hsl(var(--surface-3))',
             color: memType === 'external' ? 'hsl(var(--primary-foreground))' : 'hsl(var(--muted-foreground))'
           }}>
-          EXT
+          External
         </button>
       </div>
 
