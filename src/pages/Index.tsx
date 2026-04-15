@@ -2,15 +2,74 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { createCPU, resetCPU, executeInstruction, syncSFRsToRAM, syncRAMToSFRs, getRn, type CPUState } from '@/lib/cpu8051';
 import { assemble, type AssemblerResult, type AssemblerError } from '@/lib/assembler8051';
 import { savedPrograms, NEW_PROGRAM_TEMPLATE } from '@/lib/programs8051';
-import { Play, RotateCcw, StepForward, Bug, Square, Download, FilePlus, ChevronDown, Search, Cpu, Terminal, Lightbulb, MemoryStick, Sun, Moon, Github, X as XIcon, Smartphone } from 'lucide-react';
+import { Play, RotateCcw, StepForward, Bug, Square, Download, FilePlus, ChevronDown, Search, Cpu, Terminal, Lightbulb, MemoryStick, Sun, Moon, Github, Smartphone } from 'lucide-react';
 
 const hex = (v: number, digits = 2) => v.toString(16).toUpperCase().padStart(digits, '0');
 
-// Landing Page
-function LandingPage({ onStart, lightMode, setLightMode }: { onStart: () => void; lightMode: boolean; setLightMode: (v: boolean) => void }) {
+// Syntax highlighting for 8051 assembly
+function highlightLine(line: string): string {
+  const escaped = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  
+  const commentIdx = escaped.indexOf(';');
+  if (commentIdx === 0) return `<span style="color:hsl(var(--syntax-comment));font-style:italic">${escaped}</span>`;
+  
+  let code = escaped;
+  let commentHtml = '';
+  if (commentIdx > 0) {
+    code = escaped.slice(0, commentIdx);
+    commentHtml = `<span style="color:hsl(var(--syntax-comment));font-style:italic">${escaped.slice(commentIdx)}</span>`;
+  }
+
+  code = code.replace(/\b(ORG|END|DB|DW|EQU|BIT|DATA|XDATA|CODE|IDATA|org|end|db|dw|equ|bit|data|xdata|code|idata)\b/gi,
+    '<span style="color:hsl(var(--syntax-directive));font-weight:700">$1</span>');
+
+  code = code.replace(/\b(MOV[XCAB]*|ADD[C]?|SUB[B]?|MUL|DIV|AN[L]|OR[L]|XR[L]|CLR|CPL|SETB|PUSH|POP|XCH[D]?|SWAP|NOP|RET[I]?|ACALL|LCALL|AJMP|LJMP|SJMP|JMP|JZ|JNZ|JC|JNC|JB|JNB|JBC|CJNE|DJNZ|INC|DEC|DA|RR[C]?|RL[C]?|MOVC)\b/gi,
+    '<span style="color:hsl(var(--syntax-keyword));font-weight:700">$1</span>');
+
+  code = code.replace(/\b(A|B|AB|R[0-7]|DPTR|SP|PC|P[0-3]|PSW|ACC|TMOD|TCON|SCON|SBUF|IE|IP|TH[01]|TL[01]|DPH|DPL)\b/g,
+    '<span style="color:hsl(var(--syntax-register));font-weight:600">$1</span>');
+
+  code = code.replace(/(#?[0-9][0-9A-Fa-f]*[HhBbDd]?\b)/g,
+    '<span style="color:hsl(var(--syntax-number))">$1</span>');
+
+  code = code.replace(/^(\s*)(\w+)(:)/,
+    '$1<span style="color:hsl(var(--syntax-label));font-weight:700">$2</span>$3');
+
+  code = code.replace(/@(R[0-1]|DPTR|A\+DPTR|A\+PC)/gi,
+    '@<span style="color:hsl(var(--syntax-register));font-weight:600">$1</span>');
+
+  return code + commentHtml;
+}
+
+function highlightCode(source: string): string {
+  return source.split('\n').map(highlightLine).join('\n');
+}
+
+// Landing Page with Install button
+function LandingPage({ onStart, themeVars }: { onStart: () => void; themeVars?: React.CSSProperties }) {
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handler as any);
+    return () => window.removeEventListener('beforeinstallprompt', handler as any);
+  }, []);
+
+  const handleInstall = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      await deferredPrompt.userChoice;
+      setDeferredPrompt(null);
+    } else {
+      alert('To install: Open your browser menu → "Add to Home Screen" or "Install App"');
+    }
+  };
+
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen px-4"
-      style={{ backgroundColor: 'hsl(var(--background))' }}>
+    <div className="flex flex-col items-center justify-center min-h-screen px-4" style={{ ...themeVars, backgroundColor: 'hsl(var(--background))' }}>
       <div className="text-center max-w-lg space-y-6">
         <div className="flex justify-center mb-4">
           <div className="w-20 h-20 rounded-2xl flex items-center justify-center"
@@ -24,12 +83,18 @@ function LandingPage({ onStart, lightMode, setLightMode }: { onStart: () => void
         <p className="text-sm sm:text-base leading-relaxed" style={{ color: 'hsl(var(--muted-foreground))', fontFamily: "'Inter', sans-serif" }}>
           A professional-grade 8051 Microcontroller IDE & Simulator with cycle-accurate emulation, live memory view, and port monitoring.
         </p>
-        <button
-          onClick={onStart}
-          className="px-8 py-3 rounded-lg text-sm font-bold transition-all hover:scale-105"
-          style={{ backgroundColor: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}>
-          🚀 Start Debugging
-        </button>
+        <div className="flex flex-col items-center gap-3">
+          <button onClick={onStart}
+            className="px-8 py-3 rounded-lg text-sm font-bold transition-all hover:scale-105"
+            style={{ backgroundColor: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}>
+            🚀 Start Debugging
+          </button>
+          <button onClick={handleInstall}
+            className="flex items-center gap-2 px-6 py-2.5 rounded-lg text-xs font-semibold transition-all hover:scale-105 border"
+            style={{ borderColor: 'hsl(var(--primary))', color: 'hsl(var(--primary))', backgroundColor: 'hsl(var(--primary) / 0.08)' }}>
+            <Smartphone className="w-4 h-4" /> Install as App
+          </button>
+        </div>
       </div>
 
       <footer className="absolute bottom-4 flex flex-col items-center gap-2">
@@ -46,55 +111,8 @@ function LandingPage({ onStart, lightMode, setLightMode }: { onStart: () => void
   );
 }
 
-// Install banner with install button
-function InstallBanner({ onClose }: { onClose: () => void }) {
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
-
-  useEffect(() => {
-    const handler = (e: Event) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-    };
-    window.addEventListener('beforeinstallprompt', handler as any);
-    return () => window.removeEventListener('beforeinstallprompt', handler as any);
-  }, []);
-
-  const handleInstall = async () => {
-    if (deferredPrompt) {
-      deferredPrompt.prompt();
-      const result = await deferredPrompt.userChoice;
-      if (result.outcome === 'accepted') onClose();
-      setDeferredPrompt(null);
-    } else {
-      // Fallback: guide user
-      alert('To install: Open browser menu → "Add to Home Screen" or "Install App"');
-    }
-  };
-
-  return (
-    <div className="flex items-center justify-between px-3 py-2 text-xs gap-2"
-      style={{ backgroundColor: 'hsl(var(--primary) / 0.15)', color: 'hsl(var(--foreground))' }}>
-      <span className="flex items-center gap-1.5">
-        <Smartphone className="w-3.5 h-3.5 shrink-0" style={{ color: 'hsl(var(--primary))' }} />
-        <span>Install this app on your device for the best experience!</span>
-      </span>
-      <div className="flex items-center gap-1.5 shrink-0">
-        <button onClick={handleInstall}
-          className="px-3 py-1 rounded text-[11px] font-bold transition-colors"
-          style={{ backgroundColor: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}>
-          Install
-        </button>
-        <button onClick={onClose} className="p-0.5 rounded hover:opacity-70">
-          <XIcon className="w-3.5 h-3.5" />
-        </button>
-      </div>
-    </div>
-  );
-}
-
 export default function IDE8051() {
   const [showLanding, setShowLanding] = useState(true);
-  const [showInstallBanner, setShowInstallBanner] = useState(true);
   const [cpu, setCpu] = useState<CPUState>(() => createCPU());
   const [source, setSource] = useState(savedPrograms[0].code);
   const [assembled, setAssembled] = useState(false);
@@ -111,6 +129,20 @@ export default function IDE8051() {
   const [lightMode, setLightMode] = useState(true);
   const runRef = useRef(false);
   const [mobileTab, setMobileTab] = useState<'editor' | 'registers' | 'memory' | 'ports'>('editor');
+  const editorRef = useRef<HTMLTextAreaElement>(null);
+  const highlightRef = useRef<HTMLPreElement>(null);
+  const lineNumRef = useRef<HTMLDivElement>(null);
+
+  // Sync scroll between textarea, highlight overlay, and line numbers
+  const syncScroll = useCallback(() => {
+    const ta = editorRef.current;
+    const hl = highlightRef.current;
+    const ln = lineNumRef.current;
+    if (ta) {
+      if (hl) { hl.scrollTop = ta.scrollTop; hl.scrollLeft = ta.scrollLeft; }
+      if (ln) { ln.scrollTop = ta.scrollTop; }
+    }
+  }, []);
 
   const updateCPU = useCallback(() => {
     setCpu(prev => ({ ...prev }));
@@ -340,20 +372,17 @@ export default function IDE8051() {
     '--warning': '38 92% 50%',
   } as React.CSSProperties : undefined;
 
+  const highlightedHtml = useMemo(() => highlightCode(source), [source]);
+
   if (showLanding) {
-    return (
-      <div style={themeVars}>
-        <LandingPage onStart={() => setShowLanding(false)} lightMode={lightMode} setLightMode={setLightMode} />
-      </div>
-    );
+    return <LandingPage onStart={() => setShowLanding(false)} themeVars={themeVars} />;
   }
 
-  return (
-    <div className={`flex flex-col h-screen overflow-hidden ${lightMode ? 'light-theme' : ''}`}
-      style={themeVars}
-    >
-      {showInstallBanner && <InstallBanner onClose={() => setShowInstallBanner(false)} />}
+  const editorFontSize = '13px';
+  const editorLineHeight = '22px';
 
+  return (
+    <div className="flex flex-col h-screen overflow-hidden" style={themeVars}>
       {/* Header */}
       <header className="flex items-center justify-between px-2 sm:px-3 py-2 border-b border-border shrink-0"
         style={{ backgroundColor: 'hsl(var(--surface-1))' }}>
@@ -369,12 +398,12 @@ export default function IDE8051() {
           <button onClick={handleNew} className="flex items-center gap-1 px-2 py-1.5 text-[11px] rounded transition-colors"
             style={{ backgroundColor: 'hsl(var(--surface-2))', color: 'hsl(var(--foreground))' }}
             title="New Program">
-            <FilePlus className="w-3.5 h-3.5" /> New
+            <FilePlus className="w-3.5 h-3.5" /> <span className="hidden sm:inline">New</span>
           </button>
           <button onClick={handleSave} className="flex items-center gap-1 px-2 py-1.5 text-[11px] rounded transition-colors"
             style={{ backgroundColor: 'hsl(var(--surface-2))', color: 'hsl(var(--foreground))' }}
             title="Save as .txt">
-            <Download className="w-3.5 h-3.5" /> Save
+            <Download className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Save</span>
           </button>
           <div className="w-px h-5" style={{ backgroundColor: 'hsl(var(--border))' }} />
           <button onClick={handleDebug} className="flex items-center gap-1 px-2 py-1.5 text-[11px] rounded font-semibold transition-colors"
@@ -401,7 +430,7 @@ export default function IDE8051() {
           <button onClick={handleReset} className="flex items-center gap-1 px-2 py-1.5 text-[11px] rounded transition-colors"
             style={{ backgroundColor: 'hsl(var(--surface-2))', color: 'hsl(var(--foreground))' }}
             title="Reset">
-            <RotateCcw className="w-3.5 h-3.5" /> Reset
+            <RotateCcw className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Reset</span>
           </button>
 
           <button onClick={() => setLightMode(!lightMode)}
@@ -447,7 +476,7 @@ export default function IDE8051() {
         style={{ borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--surface-1))' }}>
         {(['editor', 'registers', 'memory', 'ports'] as const).map(tab => (
           <button key={tab} onClick={() => setMobileTab(tab)}
-            className={`flex-1 py-2 text-xs font-medium capitalize transition-colors`}
+            className="flex-1 py-2 text-xs font-medium capitalize transition-colors"
             style={{
               color: mobileTab === tab ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))',
               borderBottom: mobileTab === tab ? '2px solid hsl(var(--primary))' : '2px solid transparent'
@@ -465,13 +494,13 @@ export default function IDE8051() {
           <RegistersPanel cpu={cpu} />
         </aside>
 
-        {/* Center: Editor - SINGLE TEXTAREA, no overlay */}
+        {/* Center: Editor with syntax highlighting overlay */}
         <main className={`${mobileTab === 'editor' ? 'flex' : 'hidden'} lg:flex flex-col flex-1 min-w-0 overflow-hidden`}>
           <div className="flex-1 overflow-hidden flex" style={{ backgroundColor: 'hsl(var(--editor-bg))' }}>
             {/* Line numbers */}
-            <div className="select-none text-right pr-2 pl-2 pt-2 text-[11px] leading-[20px] font-mono shrink-0 overflow-hidden"
-              style={{ minWidth: '2.5rem', color: 'hsl(var(--muted-foreground))' }}
-              id="line-numbers">
+            <div ref={lineNumRef}
+              className="select-none text-right pr-2 pl-2 pt-2 font-mono shrink-0 overflow-hidden"
+              style={{ minWidth: '2.5rem', color: 'hsl(var(--muted-foreground))', fontSize: editorFontSize, lineHeight: editorLineHeight }}>
               {sourceLines.map((_, i) => (
                 <div key={i} style={currentLine === i + 1 ? { color: 'hsl(var(--primary))', fontWeight: 'bold' } : undefined}>
                   {i + 1}
@@ -479,28 +508,54 @@ export default function IDE8051() {
               ))}
             </div>
 
-            {/* Plain editable textarea */}
-            <textarea
-              value={source}
-              onChange={e => {
-                setSource(e.target.value);
-                setAssembled(false);
-              }}
-              onScroll={e => {
-                const lineNums = document.getElementById('line-numbers');
-                if (lineNums) lineNums.scrollTop = (e.target as HTMLTextAreaElement).scrollTop;
-              }}
-              className="flex-1 w-full h-full pt-2 px-1 pr-4 font-mono text-[11px] leading-[20px] resize-none outline-none"
-              style={{
-                backgroundColor: 'transparent',
-                color: 'hsl(var(--foreground))',
-                caretColor: 'hsl(var(--editor-cursor))',
-              }}
-              spellCheck={false}
-              autoCapitalize="off"
-              autoCorrect="off"
-              autoComplete="off"
-            />
+            {/* Editor container: highlight pre behind, textarea on top */}
+            <div className="relative flex-1 overflow-hidden">
+              {/* Syntax highlight layer (behind) */}
+              <pre
+                ref={highlightRef}
+                aria-hidden="true"
+                className="absolute inset-0 m-0 pt-2 px-1 pr-4 font-mono overflow-hidden pointer-events-none whitespace-pre"
+                style={{
+                  fontSize: editorFontSize,
+                  lineHeight: editorLineHeight,
+                  color: 'hsl(var(--foreground))',
+                  fontWeight: 500,
+                  background: 'transparent',
+                  border: 'none',
+                  wordWrap: 'normal',
+                  overflowWrap: 'normal',
+                }}
+                dangerouslySetInnerHTML={{ __html: highlightedHtml + '\n' }}
+              />
+
+              {/* Editable textarea on top (transparent text so highlight shows through) */}
+              <textarea
+                ref={editorRef}
+                value={source}
+                onChange={e => {
+                  setSource(e.target.value);
+                  setAssembled(false);
+                }}
+                onScroll={syncScroll}
+                className="absolute inset-0 w-full h-full pt-2 px-1 pr-4 font-mono resize-none outline-none"
+                style={{
+                  fontSize: editorFontSize,
+                  lineHeight: editorLineHeight,
+                  background: 'transparent',
+                  color: 'transparent',
+                  caretColor: 'hsl(var(--editor-cursor))',
+                  WebkitTextFillColor: 'transparent',
+                  whiteSpace: 'pre',
+                  wordWrap: 'normal',
+                  overflowWrap: 'normal',
+                  zIndex: 2,
+                }}
+                spellCheck={false}
+                autoCapitalize="off"
+                autoCorrect="off"
+                autoComplete="off"
+              />
+            </div>
           </div>
 
           {/* Error/Output Panel */}
