@@ -49,24 +49,45 @@ function LandingPage({ onStart, lightMode, setLightMode }: { onStart: () => void
 // Install banner - native-style top bar like Chrome's install prompt
 function InstallBanner({ onClose }: { onClose: () => void }) {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isInstalled, setIsInstalled] = useState(() => {
+    return localStorage.getItem('8051-app-installed') === 'true' ||
+           window.matchMedia('(display-mode: standalone)').matches;
+  });
 
   useEffect(() => {
+    if (isInstalled) { onClose(); return; }
     const handler = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e);
     };
     window.addEventListener('beforeinstallprompt', handler as any);
-    return () => window.removeEventListener('beforeinstallprompt', handler as any);
-  }, []);
+    
+    const installedHandler = () => {
+      localStorage.setItem('8051-app-installed', 'true');
+      setIsInstalled(true);
+      onClose();
+    };
+    window.addEventListener('appinstalled', installedHandler);
+    
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handler as any);
+      window.removeEventListener('appinstalled', installedHandler);
+    };
+  }, [isInstalled, onClose]);
+
+  if (isInstalled) return null;
 
   const handleInstall = async () => {
     if (deferredPrompt) {
       deferredPrompt.prompt();
       const result = await deferredPrompt.userChoice;
-      if (result.outcome === 'accepted') onClose();
+      if (result.outcome === 'accepted') {
+        localStorage.setItem('8051-app-installed', 'true');
+        onClose();
+      }
       setDeferredPrompt(null);
     } else {
-      alert('To install: Open browser menu (⋮) → "Add to Home Screen" or "Install App"');
+      alert('To install: Open browser menu (⋮) → "Install App" or "Add to Home Screen"');
     }
   };
 
