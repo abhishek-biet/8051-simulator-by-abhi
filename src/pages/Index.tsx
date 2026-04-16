@@ -46,7 +46,7 @@ function LandingPage({ onStart, lightMode, setLightMode }: { onStart: () => void
   );
 }
 
-// Install banner with install button
+// Install banner - native-style top bar like Chrome's install prompt
 function InstallBanner({ onClose }: { onClose: () => void }) {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
@@ -66,28 +66,29 @@ function InstallBanner({ onClose }: { onClose: () => void }) {
       if (result.outcome === 'accepted') onClose();
       setDeferredPrompt(null);
     } else {
-      // Fallback: guide user
-      alert('To install: Open browser menu → "Add to Home Screen" or "Install App"');
+      alert('To install: Open browser menu (⋮) → "Add to Home Screen" or "Install App"');
     }
   };
 
   return (
-    <div className="flex items-center justify-between px-3 py-2 text-xs gap-2"
-      style={{ backgroundColor: 'hsl(var(--primary) / 0.15)', color: 'hsl(var(--foreground))' }}>
-      <span className="flex items-center gap-1.5">
-        <Smartphone className="w-3.5 h-3.5 shrink-0" style={{ color: 'hsl(var(--primary))' }} />
-        <span>Install this app on your device for the best experience!</span>
-      </span>
-      <div className="flex items-center gap-1.5 shrink-0">
-        <button onClick={handleInstall}
-          className="px-3 py-1 rounded text-[11px] font-bold transition-colors"
-          style={{ backgroundColor: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}>
-          Install
-        </button>
-        <button onClick={onClose} className="p-0.5 rounded hover:opacity-70">
-          <XIcon className="w-3.5 h-3.5" />
-        </button>
+    <div className="flex items-center gap-3 px-3 py-2.5 text-xs shadow-md"
+      style={{ backgroundColor: 'hsl(var(--surface-2))', color: 'hsl(var(--foreground))', borderBottom: '1px solid hsl(var(--border))' }}>
+      <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+        style={{ backgroundColor: 'hsl(var(--primary) / 0.15)' }}>
+        <Cpu className="w-4 h-4" style={{ color: 'hsl(var(--primary))' }} />
       </div>
+      <div className="flex-1 min-w-0">
+        <div className="font-semibold text-xs" style={{ color: 'hsl(var(--foreground))' }}>Install 8051 Simulator</div>
+        <div className="text-[10px]" style={{ color: 'hsl(var(--muted-foreground))' }}>Install as app for the best experience • You can also toggle dark/light mode</div>
+      </div>
+      <button onClick={handleInstall}
+        className="px-4 py-1.5 rounded-full text-[11px] font-bold transition-colors shrink-0"
+        style={{ backgroundColor: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}>
+        Install
+      </button>
+      <button onClick={onClose} className="p-1 rounded-full hover:opacity-70 shrink-0">
+        <XIcon className="w-3.5 h-3.5" style={{ color: 'hsl(var(--muted-foreground))' }} />
+      </button>
     </div>
   );
 }
